@@ -11,6 +11,8 @@ using Newtonsoft.Json;
 using System.Configuration;
 using System.IO.Compression;
 using System.Web;
+using Newtonsoft.Json.Linq;
+using System.Threading.Tasks;
 
 namespace CI_EasyFly
 {
@@ -25,11 +27,17 @@ namespace CI_EasyFly
             List<AirportDef> _Airports = new List<AirportDef> { };
             List<CIFLight> CIFLights = new List<CIFLight> { };
             //Console.WriteLine("Parsing airport: {0}", Airport);
-            BrowserSession b = new BrowserSession();
-            Console.WriteLine("Getting Session and cookies...");
-            string Frontpage = b.Get("http://easyfly.com.co/");
+            string Frontpage = String.Empty;
+            using (var webClient1 = new System.Net.WebClient())
+            {
+                webClient1.Headers.Add("user-agent", ua);
+                //webClient1.Headers.Add("Referer", "http://easyfly.com.co/");
+                //string destinationsurl = "http://easyfly.com.co/home/destinations?originID={0}";
+                //Frontpage = destinationsurl.Replace("{0}", AirportFrom.Value);
+                Frontpage = webClient1.DownloadString("http://easyfly.com.co/");
+            }            
             HtmlDocument doc = new HtmlDocument();
-            DateTime dateAndTime = DateTime.Now;
+            
             doc.LoadHtml(Frontpage);
             var nodes = doc.DocumentNode.SelectNodes("//select[@id='origins']/option");
             foreach (var node in nodes)
@@ -46,91 +54,144 @@ namespace CI_EasyFly
             }
             foreach (var AirportFrom in _Airports)
             {
-                List<AirportDef> AirportToList = new List<AirportDef>(_Airports);
-                AirportToList.RemoveAll(x => x.IATA == AirportFrom.IATA);                
+                List<AirportDef> AirportToList = new List<AirportDef> { };
+                
+                string destinationsairportjson = String.Empty;
+                using (var webClient1 = new System.Net.WebClient())
+                {
+                    webClient1.Headers.Add("user-agent", ua);
+                    webClient1.Headers.Add("Referer", "http://easyfly.com.co/");
+                    string destinationsurl = "http://easyfly.com.co/home/destinations?originID={0}";
+                    destinationsurl = destinationsurl.Replace("{0}", AirportFrom.Value);
+                    destinationsairportjson = webClient1.DownloadString(destinationsurl);
+                }                
+                // Parse the Response.
+                dynamic FlightResponseJson = JObject.Parse(destinationsairportjson);
+                foreach (var Destination in FlightResponseJson.data)
+                {
+                    AirportToList.Add(new AirportDef { Name = Destination.Value.Value, IATA = Destination.Value.Key, Value = Destination.Key.ToString() });
+                }
+                
                 foreach (var AirportTo in AirportToList)
                 {
-                    Console.WriteLine("{0} - {1}", AirportFrom.IATA, AirportTo.IATA);
-                    //string AirportResponse = b.Get("http://easyfly.com.co/flights?origins=24&originsText=Monter%C3%ADa+%28MTR%29&multi=&destinations=20&originsTextReturn=Medell%C3%ADn%2C+E+Olaya+H.+%28EOH%29&multiReturn=&flightType=0&departureDateEngine=25-01-2017&returnDateEngine=25-01-2017&adt=1&chd=0&inf=0&promotionID=&tstPost=tstPost&=BUSCAR+VUELOS");
-                    String RequestUrl = "http://easyfly.com.co/flights?origins={0}&originsText={1}&multi=&destinations={2}&originsTextReturn={3}&multiReturn=&flightType=0&departureDateEngine=25-01-2017&returnDateEngine=25-01-2017&adt=1&chd=0&inf=0&promotionID=&tstPost=tstPost&=BUSCAR+VUELOS";
-                    RequestUrl = RequestUrl.Replace("{0}", AirportFrom.Value);
-                    RequestUrl = RequestUrl.Replace("{1}", HttpUtility.UrlEncode(AirportFrom.Name));
-                    RequestUrl = RequestUrl.Replace("{2}", AirportTo.Value);
-                    RequestUrl = RequestUrl.Replace("{3}", HttpUtility.UrlEncode(AirportTo.Name));
-                    Console.WriteLine(RequestUrl);
-                    string AirportResponse = b.Get(RequestUrl);
-                    Console.WriteLine("Parsing Response...");
-                    string TEMP_FromIATA = null;
-                    string TEMP_ToIATA = null;
-                    DateTime TEMP_ValidFrom = new DateTime();
-                    DateTime TEMP_ValidTo = new DateTime();
-                    int TEMP_Conversie = 0;
-                    Boolean TEMP_FlightMonday = false;
-                    Boolean TEMP_FlightTuesday = false;
-                    Boolean TEMP_FlightWednesday = false;
-                    Boolean TEMP_FlightThursday = false;
-                    Boolean TEMP_FlightFriday = false;
-                    Boolean TEMP_FlightSaterday = false;
-                    Boolean TEMP_FlightSunday = false;
-                    DateTime TEMP_DepartTime = new DateTime();
-                    DateTime TEMP_ArrivalTime = new DateTime();
-                    Boolean TEMP_FlightCodeShare = false;
-                    string TEMP_FlightNumber = String.Empty;
-                    string TEMP_Aircraftcode = String.Empty;
-                    Boolean TEMP_FlightNextDayArrival = false;
-                    int TEMP_FlightNextDays = 0;
-
-                    HtmlDocument docresponse = new HtmlDocument();
-                    docresponse.LoadHtml(AirportResponse);
-                    docresponse.Save("REsults.html");
-                    var flights = docresponse.DocumentNode.SelectNodes("//div[@class='large-12 columns']//div[@class='large-6 columns']");
-                    if (flights != null)
+                    Parallel.For(0, 10, new ParallelOptions { MaxDegreeOfParallelism = 10 }, (Day) =>
                     {
-                        foreach (HtmlNode flightitem in flights)
+                        DateTime dateAndTime = DateTime.Now;
+                        dateAndTime = dateAndTime.AddDays(Day);
+                        BrowserSession b = new BrowserSession();
+                        // Console.WriteLine("Getting Session and cookies...");
+                        b.Get("http://easyfly.com.co/");
+                        Console.WriteLine("{0} - {1} - {2}", AirportFrom.IATA, AirportTo.IATA, dateAndTime.ToShortDateString());
+                        //string AirportResponse = b.Get("http://easyfly.com.co/flights?origins=24&originsText=Monter%C3%ADa+%28MTR%29&multi=&destinations=20&originsTextReturn=Medell%C3%ADn%2C+E+Olaya+H.+%28EOH%29&multiReturn=&flightType=0&departureDateEngine=25-01-2017&returnDateEngine=25-01-2017&adt=1&chd=0&inf=0&promotionID=&tstPost=tstPost&=BUSCAR+VUELOS");
+                        String RequestUrl = "http://easyfly.com.co/flights?origins={0}&originsText={1}&multi=&destinations={2}&originsTextReturn={3}&multiReturn=&flightType=0&departureDateEngine={4}&returnDateEngine={4}&adt=1&chd=0&inf=0&promotionID=&tstPost=tstPost&=BUSCAR+VUELOS";
+                        RequestUrl = RequestUrl.Replace("{0}", AirportFrom.Value);
+                        RequestUrl = RequestUrl.Replace("{1}", HttpUtility.UrlEncode(AirportFrom.Name, Encoding.UTF8));
+                        RequestUrl = RequestUrl.Replace("{2}", AirportTo.Value);
+                        RequestUrl = RequestUrl.Replace("{3}", HttpUtility.UrlEncode(AirportTo.Name, Encoding.UTF8));
+                        RequestUrl = RequestUrl.Replace("{4}", String.Format("{0:dd-MM-yyyy}", dateAndTime));
+                        string AirportResponse = b.Get(RequestUrl);
+                        //Console.WriteLine("Parsing Response...");
+                        string TEMP_FromIATA = null;
+                        string TEMP_ToIATA = null;
+                        DateTime TEMP_ValidFrom = new DateTime();
+                        DateTime TEMP_ValidTo = new DateTime();
+
+                        Boolean TEMP_FlightMonday = false;
+                        Boolean TEMP_FlightTuesday = false;
+                        Boolean TEMP_FlightWednesday = false;
+                        Boolean TEMP_FlightThursday = false;
+                        Boolean TEMP_FlightFriday = false;
+                        Boolean TEMP_FlightSaterday = false;
+                        Boolean TEMP_FlightSunday = false;
+                        DateTime TEMP_DepartTime = new DateTime();
+                        DateTime TEMP_ArrivalTime = new DateTime();
+                        Boolean TEMP_FlightCodeShare = false;
+                        string TEMP_FlightNumber = String.Empty;
+                        string TEMP_Aircraftcode = String.Empty;
+                        Boolean TEMP_FlightNextDayArrival = false;
+                        int TEMP_FlightNextDays = 0;
+
+                        HtmlDocument docresponse = new HtmlDocument();
+                        docresponse.LoadHtml(AirportResponse);
+                        var flights = docresponse.DocumentNode.SelectNodes("//div[@class='large-12 columns']//div[@class='large-6 columns']");
+                        if (flights != null)
                         {
-                            TEMP_FromIATA = flightitem.SelectSingleNode("./div[1]/div[1]/span[2]").InnerText.ToString();
-                            TEMP_ToIATA = flightitem.SelectSingleNode("./div[1]/div[3]/span[2]").InnerText.ToString();
-                            TEMP_DepartTime = Convert.ToDateTime(flightitem.SelectSingleNode("./div[1]/div[1]/span[1]").InnerText.ToString());
-                            TEMP_ArrivalTime = Convert.ToDateTime(flightitem.SelectSingleNode("./div[1]/div[3]/span[1]").InnerText.ToString());
-                            TEMP_FlightNumber = flightitem.SelectSingleNode("./div[1]/div[4]/span[2]").InnerText.ToString();
-                            TEMP_ValidFrom = dateAndTime;
-                            TEMP_ValidTo = dateAndTime;
-                            int dayofweek = Convert.ToInt32(dateAndTime.DayOfWeek);
-                            if (dayofweek == 0) { TEMP_FlightSunday = true; }
-                            if (dayofweek == 1) { TEMP_FlightMonday = true; }
-                            if (dayofweek == 2) { TEMP_FlightTuesday = true; }
-                            if (dayofweek == 3) { TEMP_FlightWednesday = true; }
-                            if (dayofweek == 4) { TEMP_FlightThursday = true; }
-                            if (dayofweek == 5) { TEMP_FlightFriday = true; }
-                            if (dayofweek == 6) { TEMP_FlightSaterday = true; }
-                            CIFLights.Add(new CIFLight
+                            foreach (HtmlNode flightitem in flights)
                             {
-                                FromIATA = TEMP_FromIATA,
-                                ToIATA = TEMP_ToIATA,
-                                FromDate = TEMP_ValidFrom,
-                                ToDate = TEMP_ValidTo,
-                                ArrivalTime = TEMP_ArrivalTime,
-                                DepartTime = TEMP_DepartTime,
-                                FlightAircraft = String.Empty,
-                                FlightAirline = "EF",
-                                FlightMonday = TEMP_FlightMonday,
-                                FlightTuesday = TEMP_FlightTuesday,
-                                FlightWednesday = TEMP_FlightWednesday,
-                                FlightThursday = TEMP_FlightThursday,
-                                FlightFriday = TEMP_FlightFriday,
-                                FlightSaterday = TEMP_FlightSaterday,
-                                FlightSunday = TEMP_FlightSunday,
-                                FlightNumber = TEMP_FlightNumber,
-                                FlightOperator = String.Empty,
-                                FlightDuration = String.Empty,
-                                FlightCodeShare = TEMP_FlightCodeShare,
-                                FlightNextDayArrival = TEMP_FlightNextDayArrival,
-                                FlightNextDays = TEMP_FlightNextDays,
-                                FlightNonStop = true,
-                                FlightVia = String.Empty
-                            });                            
+                                var inDirectFlights = flightitem.Descendants("./a[@class='stepConnection']").Any();
+                                var popUpClose = flightitem.SelectSingleNode("./a[@class='popClose']");
+                                var ResumedeVuelo = flightitem.InnerHtml.Contains("Resumen del vuelo");
+                                if (!inDirectFlights & !ResumedeVuelo & popUpClose == null)
+                                {
+                                    TEMP_FromIATA = flightitem.SelectSingleNode("./div[1]/div[1]/span[2]").InnerText.ToString();
+                                    TEMP_ToIATA = flightitem.SelectSingleNode("./div[1]/div[3]/span[2]").InnerText.ToString();
+                                    TEMP_DepartTime = Convert.ToDateTime(flightitem.SelectSingleNode("./div[1]/div[1]/span[1]").InnerText.ToString());
+                                    TEMP_ArrivalTime = Convert.ToDateTime(flightitem.SelectSingleNode("./div[1]/div[3]/span[1]").InnerText.ToString());
+                                    TEMP_FlightNumber = flightitem.SelectSingleNode("./div[1]/div[4]/span[2]").InnerText.ToString();
+                                    TEMP_FlightNumber = TEMP_FlightNumber.Replace("EF ", "");
+                                    TEMP_ValidFrom = dateAndTime.Date;
+                                    TEMP_ValidTo = dateAndTime.Date;
+                                    int dayofweek = Convert.ToInt32(dateAndTime.DayOfWeek);
+                                    if (dayofweek == 0) { TEMP_FlightSunday = true; }
+                                    if (dayofweek == 1) { TEMP_FlightMonday = true; }
+                                    if (dayofweek == 2) { TEMP_FlightTuesday = true; }
+                                    if (dayofweek == 3) { TEMP_FlightWednesday = true; }
+                                    if (dayofweek == 4) { TEMP_FlightThursday = true; }
+                                    if (dayofweek == 5) { TEMP_FlightFriday = true; }
+                                    if (dayofweek == 6) { TEMP_FlightSaterday = true; }
+                                    bool alreadyExists = CIFLights.Exists(x => x.FromIATA == TEMP_FromIATA
+                                                    && x.ToIATA == TEMP_ToIATA
+                                                    && x.FromDate == TEMP_ValidFrom
+                                                    && x.ToDate == TEMP_ValidTo
+                                                    && x.FlightNumber == TEMP_FlightNumber
+                                                    && x.FlightAirline == "EF"
+                                                    && x.FlightMonday == TEMP_FlightMonday
+                                                    && x.FlightTuesday == TEMP_FlightTuesday
+                                                    && x.FlightWednesday == TEMP_FlightWednesday
+                                                    && x.FlightThursday == TEMP_FlightThursday
+                                                    && x.FlightFriday == TEMP_FlightFriday
+                                                    && x.FlightSaterday == TEMP_FlightSaterday
+                                                    && x.FlightSunday == TEMP_FlightSunday);
+
+
+                                    if (!alreadyExists)
+                                    {
+                                        CIFLights.Add(new CIFLight
+                                        {
+                                            FromIATA = TEMP_FromIATA,
+                                            ToIATA = TEMP_ToIATA,
+                                            FromDate = TEMP_ValidFrom,
+                                            ToDate = TEMP_ValidTo,
+                                            ArrivalTime = TEMP_ArrivalTime,
+                                            DepartTime = TEMP_DepartTime,
+                                            FlightAircraft = String.Empty,
+                                            FlightAirline = "EF",
+                                            FlightMonday = TEMP_FlightMonday,
+                                            FlightTuesday = TEMP_FlightTuesday,
+                                            FlightWednesday = TEMP_FlightWednesday,
+                                            FlightThursday = TEMP_FlightThursday,
+                                            FlightFriday = TEMP_FlightFriday,
+                                            FlightSaterday = TEMP_FlightSaterday,
+                                            FlightSunday = TEMP_FlightSunday,
+                                            FlightNumber = TEMP_FlightNumber,
+                                            FlightOperator = String.Empty,
+                                            FlightDuration = String.Empty,
+                                            FlightCodeShare = TEMP_FlightCodeShare,
+                                            FlightNextDayArrival = TEMP_FlightNextDayArrival,
+                                            FlightNextDays = TEMP_FlightNextDays,
+                                            FlightNonStop = true,
+                                            FlightVia = String.Empty
+                                        });
+                                        // End Duplicate checking
+                                    }
+                                    // End Onyl direct flights parsing
+                                }
+                                // End Flight item parsing
+                            }
+                            // End flight check
                         }
-                    }
+                    // End Parrallel parsing
+                    });
                 }
             }
             
@@ -181,7 +242,7 @@ namespace CI_EasyFly
                     {
                         client.Encoding = Encoding.UTF8;
                         client.Headers.Add("user-agent", ua);
-                        string urlapi = ConfigurationManager.AppSettings.Get("APIUrl") + APIPathAirline + airlines[i].FlightAirline;
+                        string urlapi = ConfigurationManager.AppSettings.Get("APIUrl") + APIPathAirline + airlines[i].FlightAirline.Trim();
                         var jsonapi = client.DownloadString(urlapi);
                         dynamic AirlineResponseJson = JsonConvert.DeserializeObject(jsonapi);
                         csv.WriteField(Convert.ToString(AirlineResponseJson[0].code));
@@ -422,7 +483,7 @@ namespace CI_EasyFly
 
                             // Calender
 
-                            csvcalendar.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate));
+                            csvcalendar.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightAirline + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate) + Convert.ToInt32(CIFLights[i].FlightMonday) + Convert.ToInt32(CIFLights[i].FlightTuesday) + Convert.ToInt32(CIFLights[i].FlightWednesday) + Convert.ToInt32(CIFLights[i].FlightThursday) + Convert.ToInt32(CIFLights[i].FlightFriday) + Convert.ToInt32(CIFLights[i].FlightSaterday) + Convert.ToInt32(CIFLights[i].FlightSunday));
                             csvcalendar.WriteField(Convert.ToInt32(CIFLights[i].FlightMonday));
                             csvcalendar.WriteField(Convert.ToInt32(CIFLights[i].FlightTuesday));
                             csvcalendar.WriteField(Convert.ToInt32(CIFLights[i].FlightWednesday));
@@ -454,8 +515,8 @@ namespace CI_EasyFly
                                 ToAirportName = Convert.ToString(AirportResponseJson[0].name);
                             }
                             csvtrips.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA);
-                            csvtrips.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate));
-                            csvtrips.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightNumber.Replace(" ", ""));
+                            csvtrips.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightAirline + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate) + Convert.ToInt32(CIFLights[i].FlightMonday) + Convert.ToInt32(CIFLights[i].FlightTuesday) + Convert.ToInt32(CIFLights[i].FlightWednesday) + Convert.ToInt32(CIFLights[i].FlightThursday) + Convert.ToInt32(CIFLights[i].FlightFriday) + Convert.ToInt32(CIFLights[i].FlightSaterday) + Convert.ToInt32(CIFLights[i].FlightSunday));
+                            csvtrips.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightAirline + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate) + Convert.ToInt32(CIFLights[i].FlightMonday) + Convert.ToInt32(CIFLights[i].FlightTuesday) + Convert.ToInt32(CIFLights[i].FlightWednesday) + Convert.ToInt32(CIFLights[i].FlightThursday) + Convert.ToInt32(CIFLights[i].FlightFriday) + Convert.ToInt32(CIFLights[i].FlightSaterday) + Convert.ToInt32(CIFLights[i].FlightSunday));
                             csvtrips.WriteField(ToAirportName);
                             csvtrips.WriteField(CIFLights[i].FlightNumber);
                             csvtrips.WriteField("");
@@ -466,7 +527,7 @@ namespace CI_EasyFly
                             csvtrips.NextRecord();
 
                             // Depart Record
-                            csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightNumber.Replace(" ", ""));
+                            csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightAirline + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate) + Convert.ToInt32(CIFLights[i].FlightMonday) + Convert.ToInt32(CIFLights[i].FlightTuesday) + Convert.ToInt32(CIFLights[i].FlightWednesday) + Convert.ToInt32(CIFLights[i].FlightThursday) + Convert.ToInt32(CIFLights[i].FlightFriday) + Convert.ToInt32(CIFLights[i].FlightSaterday) + Convert.ToInt32(CIFLights[i].FlightSunday));
                             csvstoptimes.WriteField(String.Format("{0:HH:mm:ss}", CIFLights[i].DepartTime));
                             csvstoptimes.WriteField(String.Format("{0:HH:mm:ss}", CIFLights[i].DepartTime));
                             csvstoptimes.WriteField(CIFLights[i].FromIATA);
@@ -480,7 +541,7 @@ namespace CI_EasyFly
                             if (!CIFLights[i].FlightNonStop)
                             {
                                 // Non Direct flight...
-                                csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightNumber.Replace(" ", ""));
+                                csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightAirline + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate) + Convert.ToInt32(CIFLights[i].FlightMonday) + Convert.ToInt32(CIFLights[i].FlightTuesday) + Convert.ToInt32(CIFLights[i].FlightWednesday) + Convert.ToInt32(CIFLights[i].FlightThursday) + Convert.ToInt32(CIFLights[i].FlightFriday) + Convert.ToInt32(CIFLights[i].FlightSaterday) + Convert.ToInt32(CIFLights[i].FlightSunday));
                                 csvstoptimes.WriteField("");
                                 csvstoptimes.WriteField("");
                                 csvstoptimes.WriteField(CIFLights[i].FlightVia);
@@ -496,7 +557,7 @@ namespace CI_EasyFly
                             // Arrival Record
                             if (!CIFLights[i].FlightNextDayArrival)
                             {
-                                csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightNumber.Replace(" ", ""));
+                                csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightAirline + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate) + Convert.ToInt32(CIFLights[i].FlightMonday) + Convert.ToInt32(CIFLights[i].FlightTuesday) + Convert.ToInt32(CIFLights[i].FlightWednesday) + Convert.ToInt32(CIFLights[i].FlightThursday) + Convert.ToInt32(CIFLights[i].FlightFriday) + Convert.ToInt32(CIFLights[i].FlightSaterday) + Convert.ToInt32(CIFLights[i].FlightSunday));
                                 csvstoptimes.WriteField(String.Format("{0:HH:mm:ss}", CIFLights[i].ArrivalTime));
                                 csvstoptimes.WriteField(String.Format("{0:HH:mm:ss}", CIFLights[i].ArrivalTime));
                                 csvstoptimes.WriteField(CIFLights[i].ToIATA);
@@ -516,7 +577,7 @@ namespace CI_EasyFly
                                 int minute = CIFLights[i].ArrivalTime.Minute;
                                 string strminute = minute.ToString();
                                 if (strminute.Length == 1) { strminute = "0" + strminute; }
-                                csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightNumber.Replace(" ", ""));
+                                csvstoptimes.WriteField(CIFLights[i].FromIATA + CIFLights[i].ToIATA + CIFLights[i].FlightAirline + CIFLights[i].FlightNumber.Replace(" ", "") + String.Format("{0:yyyyMMdd}", CIFLights[i].FromDate) + String.Format("{0:yyyyMMdd}", CIFLights[i].ToDate) + Convert.ToInt32(CIFLights[i].FlightMonday) + Convert.ToInt32(CIFLights[i].FlightTuesday) + Convert.ToInt32(CIFLights[i].FlightWednesday) + Convert.ToInt32(CIFLights[i].FlightThursday) + Convert.ToInt32(CIFLights[i].FlightFriday) + Convert.ToInt32(CIFLights[i].FlightSaterday) + Convert.ToInt32(CIFLights[i].FlightSunday));
                                 csvstoptimes.WriteField(hour + ":" + strminute + ":00");
                                 csvstoptimes.WriteField(hour + ":" + strminute + ":00");
                                 csvstoptimes.WriteField(CIFLights[i].ToIATA);
