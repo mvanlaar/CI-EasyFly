@@ -74,7 +74,7 @@ namespace CI_EasyFly
                 
                 foreach (var AirportTo in AirportToList)
                 {
-                    Parallel.For(0, 10, new ParallelOptions { MaxDegreeOfParallelism = 10 }, (Day) =>
+                    Parallel.For(0, 30, new ParallelOptions { MaxDegreeOfParallelism = 10 }, (Day) =>
                     {
                         DateTime dateAndTime = DateTime.Now;
                         dateAndTime = dateAndTime.AddDays(Day);
