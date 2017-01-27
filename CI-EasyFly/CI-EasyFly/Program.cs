@@ -144,7 +144,7 @@ namespace CI_EasyFly
                                                     && x.FromDate == TEMP_ValidFrom
                                                     && x.ToDate == TEMP_ValidTo
                                                     && x.FlightNumber == TEMP_FlightNumber
-                                                    && x.FlightAirline == "EF"
+                                                    && x.FlightAirline == "VE"
                                                     && x.FlightMonday == TEMP_FlightMonday
                                                     && x.FlightTuesday == TEMP_FlightTuesday
                                                     && x.FlightWednesday == TEMP_FlightWednesday
@@ -165,7 +165,7 @@ namespace CI_EasyFly
                                             ArrivalTime = TEMP_ArrivalTime,
                                             DepartTime = TEMP_DepartTime,
                                             FlightAircraft = String.Empty,
-                                            FlightAirline = "EF",
+                                            FlightAirline = "VE",
                                             FlightMonday = TEMP_FlightMonday,
                                             FlightTuesday = TEMP_FlightTuesday,
                                             FlightWednesday = TEMP_FlightWednesday,
