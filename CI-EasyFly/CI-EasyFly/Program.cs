@@ -73,10 +73,14 @@ namespace CI_EasyFly
                 {
                     AirportToList.Add(new AirportDef { Name = Destination.Value.Value, IATA = Destination.Value.Key, Value = Destination.Key.ToString() });
                 }
-                
+
+                int FromDay = Convert.ToInt32(ConfigurationManager.AppSettings.Get("FromDay"));
+                int ToDay = Convert.ToInt32(ConfigurationManager.AppSettings.Get("ToDay"));
+
+
                 foreach (var AirportTo in AirportToList)
                 {
-                    Parallel.For(0, 30, new ParallelOptions { MaxDegreeOfParallelism = 10 }, (Day) =>
+                    Parallel.For(FromDay, ToDay, new ParallelOptions { MaxDegreeOfParallelism = 5 }, (Day) =>
                     {
                         DateTime dateAndTime = DateTime.Now;
                         dateAndTime = dateAndTime.AddDays(Day);
@@ -243,7 +247,6 @@ namespace CI_EasyFly
                     string urlapi = ConfigurationManager.AppSettings.Get("APIUrl") + APIPathAirline + airlines[0].FlightAirline.Trim();
                     string RequestAirlineJson = String.Empty;
                     HttpWebRequest requestAirline = (HttpWebRequest)WebRequest.Create(urlapi);
-
                     requestAirline.Method = "GET";
                     requestAirline.UserAgent = ua;
                     requestAirline.Accept = HeaderAccept;
