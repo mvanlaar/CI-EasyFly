@@ -411,7 +411,7 @@ namespace CI_EasyFly
 
                         csvstops.WriteField(Convert.ToString(AirportResponseJson[0].code));
                         csvstops.WriteField(Convert.ToString(AirportResponseJson[0].name));
-                        csvstops.WriteField("");
+                        csvstops.WriteField(Convert.ToString(AirportResponseJson[0].city));
                         csvstops.WriteField(Convert.ToString(AirportResponseJson[0].lat));
                         csvstops.WriteField(Convert.ToString(AirportResponseJson[0].lng));
                         csvstops.WriteField("");
